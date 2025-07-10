@@ -1,0 +1,243 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  username  String   @unique
+  firstName String
+  lastName  String
+  password  String
+  role      UserRole @default(STUDENT)
+  avatar    String?
+  bio       String?
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relaciones
+  enrollments      Enrollment[]
+  instructorCourses Course[]     @relation("InstructorCourses")
+  submissions      Submission[]
+  activities       Activity[]
+  aiInteractions   AIInteraction[]
+  progress         Progress[]
+
+  @@map("users")
+}
+
+model Course {
+  id          String      @id @default(cuid())
+  title       String
+  description String
+  thumbnail   String?
+  category    String
+  level       CourseLevel
+  isPublished Boolean     @default(false)
+  price       Float       @default(0)
+  duration    Int? // en minutos
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  // Relaciones
+  instructorId String
+  instructor   User         @relation("InstructorCourses", fields: [instructorId], references: [id])
+  modules      Module[]
+  enrollments  Enrollment[]
+  activities   Activity[]
+
+  @@map("courses")
+}
+
+model Module {
+  id          String   @id @default(cuid())
+  title       String
+  description String?
+  order       Int
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relaciones
+  courseId String
+  course   Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  lessons  Lesson[]
+
+  @@map("modules")
+}
+
+model Lesson {
+  id          String      @id @default(cuid())
+  title       String
+  content     String
+  type        LessonType
+  videoUrl    String?
+  duration    Int? // en minutos
+  order       Int
+  isCompleted Boolean     @default(false)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  // Relaciones
+  moduleId    String
+  module      Module       @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+  activities  Activity[]
+  submissions Submission[]
+  progress    Progress[]
+
+  @@map("lessons")
+}
+
+model Enrollment {
+  id           String           @id @default(cuid())
+  enrolledAt   DateTime         @default(now())
+  completedAt  DateTime?
+  status       EnrollmentStatus @default(ACTIVE)
+  progress     Float            @default(0) // porcentaje de progreso
+
+  // Relaciones
+  userId   String
+  user     User   @relation(fields: [userId], references: [id])
+  courseId String
+  course   Course @relation(fields: [courseId], references: [id])
+
+  @@unique([userId, courseId])
+  @@map("enrollments")
+}
+
+model Activity {
+  id          String       @id @default(cuid())
+  title       String
+  description String?
+  type        ActivityType
+  content     Json? // contenido flexible para diferentes tipos
+  maxScore    Float        @default(100)
+  timeLimit   Int? // en minutos
+  attempts    Int          @default(1)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  // Relaciones
+  courseId    String?
+  course      Course?      @relation(fields: [courseId], references: [id])
+  lessonId    String?
+  lesson      Lesson?      @relation(fields: [lessonId], references: [id])
+  createdBy   String
+  creator     User         @relation(fields: [createdBy], references: [id])
+  submissions Submission[]
+
+  @@map("activities")
+}
+
+model Submission {
+  id          String           @id @default(cuid())
+  content     Json
+  score       Float?
+  feedback    String?
+  status      SubmissionStatus @default(PENDING)
+  submittedAt DateTime         @default(now())
+  gradedAt    DateTime?
+
+  // Relaciones
+  userId     String
+  user       User     @relation(fields: [userId], references: [id])
+  activityId String
+  activity   Activity @relation(fields: [activityId], references: [id])
+  lessonId   String?
+  lesson     Lesson?  @relation(fields: [lessonId], references: [id])
+
+  @@map("submissions")
+}
+
+model Progress {
+  id          String   @id @default(cuid())
+  percentage  Float    @default(0)
+  timeSpent   Int      @default(0) // en minutos
+  lastAccess  DateTime @default(now())
+  isCompleted Boolean  @default(false)
+
+  // Relaciones
+  userId   String
+  user     User   @relation(fields: [userId], references: [id])
+  lessonId String
+  lesson   Lesson @relation(fields: [lessonId], references: [id])
+
+  @@unique([userId, lessonId])
+  @@map("progress")
+}
+
+model AIInteraction {
+  id        String        @id @default(cuid())
+  type      AIAgentType
+  query     String
+  response  Json
+  context   Json?
+  feedback  String?
+  rating    Int? // 1-5
+  createdAt DateTime      @default(now())
+
+  // Relaciones
+  userId String
+  user   User   @relation(fields: [userId], references: [id])
+
+  @@map("ai_interactions")
+}
+
+// Enums
+enum UserRole {
+  ADMIN
+  INSTRUCTOR
+  STUDENT
+}
+
+enum CourseLevel {
+  BEGINNER
+  INTERMEDIATE
+  ADVANCED
+}
+
+enum LessonType {
+  VIDEO
+  TEXT
+  INTERACTIVE
+  QUIZ
+  ASSIGNMENT
+}
+
+enum ActivityType {
+  QUIZ
+  ASSIGNMENT
+  DISCUSSION
+  PROJECT
+  SURVEY
+}
+
+enum EnrollmentStatus {
+  ACTIVE
+  COMPLETED
+  SUSPENDED
+  CANCELLED
+}
+
+enum SubmissionStatus {
+  PENDING
+  GRADED
+  LATE
+  REJECTED
+}
+
+enum AIAgentType {
+  TUTOR
+  MENTOR
+  ASSESSOR
+  CONTENT_RECOMMENDER
+  STUDY_PLANNER
+}
